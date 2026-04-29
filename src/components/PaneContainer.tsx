@@ -84,9 +84,17 @@ export function PaneContainer({ paneId }: Props) {
       }
     }
 
-    load();
+    if (!searchQuery.trim()) {
+      load();
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const timer = setTimeout(load, 250);
     return () => {
       cancelled = true;
+      clearTimeout(timer);
     };
   // refreshTrigger increment forces a reload without path change (e.g. after drop)
   // eslint-disable-next-line react-hooks/exhaustive-deps

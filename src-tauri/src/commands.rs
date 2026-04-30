@@ -85,6 +85,24 @@ fn entry_from_path(path: &std::path::Path, meta: &std::fs::Metadata) -> FileEntr
     }
 }
 
+fn score_match(file_name: &str, file_path: &str, query: &str) -> u32 {
+    let name_lower = file_name.to_lowercase();
+    let path_lower = file_path.to_lowercase();
+    let query_lower = query.to_lowercase();
+
+    if name_lower == query_lower {
+        1000 // exact filename match
+    } else if name_lower.starts_with(&query_lower) {
+        300 // filename starts with query
+    } else if name_lower.contains(&query_lower) {
+        100 // filename contains query
+    } else if path_lower.contains(&query_lower) {
+        10 // path contains query
+    } else {
+        0
+    }
+}
+
 // ── Commands ──────────────────────────────────────────────────────────────────
 
 #[tauri::command]
@@ -143,7 +161,7 @@ pub fn search_files(
     state: tauri::State<'_, crate::db::DbState>,
 ) -> Result<Vec<FileEntry>, String> {
     // Try FTS5 index first
-    let indexed_results = {
+    let mut indexed_results = {
         let conn = state.0.lock().unwrap();
         let root_normalized = if root.ends_with('\\') {
             root.clone()
@@ -176,11 +194,12 @@ pub fn search_files(
     };
 
     if !indexed_results.is_empty() {
+        // Rank indexed results
+        indexed_results.sort_by_key(|entry| std::cmp::Reverse(score_match(&entry.name, &entry.path, &query)));
         return Ok(indexed_results);
     }
 
     // Fall back to parallel walkdir if index is empty or unavailable
-    let query_lower = query.to_lowercase();
     use rayon::prelude::*;
 
     let mut results: Vec<FileEntry> = walkdir::WalkDir::new(&root)
@@ -191,8 +210,8 @@ pub fn search_files(
         .filter_map(|e| e.ok())
         .filter(|e| e.path().to_string_lossy() != root)
         .filter_map(|entry| {
-            let name = entry.file_name().to_string_lossy().to_lowercase();
-            if name.contains(&query_lower) {
+            let name = entry.file_name().to_string_lossy().to_string();
+            if score_match(&name, &entry.path().to_string_lossy(), &query) > 0 {
                 entry.metadata().ok().map(|meta| entry_from_path(entry.path(), &meta))
             } else {
                 None
@@ -201,6 +220,8 @@ pub fn search_files(
         .collect();
 
     results.truncate(2000);
+    // Rank fallback results
+    results.sort_by_key(|entry| std::cmp::Reverse(score_match(&entry.name, &entry.path, &query)));
     Ok(results)
 }
 

@@ -85,7 +85,27 @@ fn entry_from_path(path: &std::path::Path, meta: &std::fs::Metadata) -> FileEntr
     }
 }
 
+fn fuzzy_match(text: &str, pattern: &str) -> bool {
+    let mut pattern_chars = pattern.chars();
+    let mut next_char = pattern_chars.next();
+
+    for ch in text.chars() {
+        if let Some(p) = next_char {
+            if ch.to_lowercase().to_string() == p.to_lowercase().to_string() {
+                next_char = pattern_chars.next();
+            }
+        } else {
+            return true;
+        }
+    }
+    next_char.is_none()
+}
+
 fn score_match(file_name: &str, file_path: &str, query: &str) -> u32 {
+    if query.is_empty() {
+        return 0;
+    }
+
     let name_lower = file_name.to_lowercase();
     let path_lower = file_path.to_lowercase();
     let query_lower = query.to_lowercase();
@@ -94,10 +114,10 @@ fn score_match(file_name: &str, file_path: &str, query: &str) -> u32 {
         1000 // exact filename match
     } else if name_lower.starts_with(&query_lower) {
         300 // filename starts with query
-    } else if name_lower.contains(&query_lower) {
-        100 // filename contains query
-    } else if path_lower.contains(&query_lower) {
-        10 // path contains query
+    } else if fuzzy_match(&name_lower, &query_lower) {
+        100 // filename fuzzy matches query
+    } else if fuzzy_match(&path_lower, &query_lower) {
+        10 // path fuzzy matches query
     } else {
         0
     }

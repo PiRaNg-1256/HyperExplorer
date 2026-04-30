@@ -35,8 +35,8 @@ export function ContextMenu({ x, y, items, onClose }: Props) {
     if (!el) return;
     const { width, height } = el.getBoundingClientRect();
     setPos({
-      left: Math.min(x, window.innerWidth - width - 6),
-      top: Math.min(y, window.innerHeight - height - 6),
+      left: Math.max(6, Math.min(x, window.innerWidth - width - 6)),
+      top: Math.max(6, Math.min(y, window.innerHeight - height - 6)),
     });
   }, [x, y]);
 

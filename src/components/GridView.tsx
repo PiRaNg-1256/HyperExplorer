@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import type { FileEntry, PaneId } from '../types';
 import { useAppStore, getActiveTab } from '../store';
 import { FileIcon } from './FileIcon';
@@ -13,6 +14,16 @@ export function GridView({ paneId, entries, onNavigate, onOpen }: Props) {
   const store = useAppStore();
   const tab = getActiveTab(store.panes[paneId]);
   const { selectedPaths } = tab;
+
+  const tagsByPath = useMemo(() => {
+    const map = new Map<string, { tagName: string; color: string }[]>();
+    for (const tag of store.allTags) {
+      const list = map.get(tag.filePath) ?? [];
+      list.push({ tagName: tag.tagName, color: tag.color });
+      map.set(tag.filePath, list);
+    }
+    return map;
+  }, [store.allTags]);
 
   if (entries.length === 0) {
     return (
@@ -53,6 +64,22 @@ export function GridView({ paneId, entries, onNavigate, onOpen }: Props) {
               <span className="text-xs text-zinc-300 leading-tight line-clamp-2 break-all">
                 {entry.name}
               </span>
+              {(() => {
+                const dots = tagsByPath.get(entry.path);
+                if (!dots || dots.length === 0) return null;
+                return (
+                  <div className="flex items-center gap-0.5">
+                    {dots.slice(0, 4).map((t) => (
+                      <span
+                        key={t.tagName}
+                        title={t.tagName}
+                        className="w-1.5 h-1.5 rounded-full"
+                        style={{ backgroundColor: t.color }}
+                      />
+                    ))}
+                  </div>
+                );
+              })()}
             </button>
           );
         })}

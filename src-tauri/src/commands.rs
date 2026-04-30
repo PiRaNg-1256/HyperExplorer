@@ -209,7 +209,40 @@ pub fn watch_dir(
     path: String,
     app_handle: tauri::AppHandle,
     state: tauri::State<'_, WatcherState>,
+    db_state: tauri::State<'_, crate::db::DbState>,
 ) -> Result<(), String> {
+    // Index directory for search
+    {
+        let conn = db_state.0.lock().unwrap();
+        let root_prefix = if path.ends_with('\\') {
+            path.clone()
+        } else {
+            format!("{}\\", path)
+        };
+        let _ = conn.execute(
+            "DELETE FROM file_index WHERE file_path LIKE ?1 || '%'",
+            rusqlite::params![root_prefix],
+        );
+        for entry in walkdir::WalkDir::new(&path)
+            .into_iter()
+            .filter_map(|e| e.ok())
+            .filter(|e| e.path().to_string_lossy() != path)
+        {
+            let entry_path = entry.path();
+            let file_path = entry_path.to_string_lossy().to_string();
+            let file_name = entry_path
+                .file_name()
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_default();
+            let is_dir = entry.file_type().is_dir() as i32;
+
+            let _ = conn.execute(
+                "INSERT INTO file_index (file_path, file_name, is_dir) VALUES (?1, ?2, ?3)",
+                rusqlite::params![file_path, file_name, is_dir],
+            );
+        }
+    }
+
     let (tx, rx) = std::sync::mpsc::channel::<notify::Result<notify::Event>>();
 
     let mut watcher =

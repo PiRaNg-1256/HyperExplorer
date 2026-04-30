@@ -26,6 +26,7 @@ chrono = { version = "0.4", features = ["serde"] }
 open = "5"
 dirs = "5"
 zip = { version = "2", features = [] }
+rayon = "1"
 
 [profile.release]
 panic = "abort"

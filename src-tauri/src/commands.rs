@@ -179,28 +179,28 @@ pub fn search_files(
         return Ok(indexed_results);
     }
 
-    // Fall back to walkdir if index is empty or unavailable
+    // Fall back to parallel walkdir if index is empty or unavailable
     let query_lower = query.to_lowercase();
-    let mut results = Vec::new();
+    use rayon::prelude::*;
 
-    for entry in walkdir::WalkDir::new(&root)
+    let mut results: Vec<FileEntry> = walkdir::WalkDir::new(&root)
         .max_depth(10)
         .follow_links(false)
         .into_iter()
+        .par_bridge()
         .filter_map(|e| e.ok())
         .filter(|e| e.path().to_string_lossy() != root)
-    {
-        let name = entry.file_name().to_string_lossy().to_lowercase();
-        if name.contains(&query_lower) {
-            if let Ok(meta) = entry.metadata() {
-                results.push(entry_from_path(entry.path(), &meta));
+        .filter_map(|entry| {
+            let name = entry.file_name().to_string_lossy().to_lowercase();
+            if name.contains(&query_lower) {
+                entry.metadata().ok().map(|meta| entry_from_path(entry.path(), &meta))
+            } else {
+                None
             }
-        }
-        if results.len() >= 2000 {
-            break;
-        }
-    }
+        })
+        .collect();
 
+    results.truncate(2000);
     Ok(results)
 }
 
@@ -211,7 +211,7 @@ pub fn watch_dir(
     state: tauri::State<'_, WatcherState>,
     db_state: tauri::State<'_, crate::db::DbState>,
 ) -> Result<(), String> {
-    // Index directory for search
+    // Index directory for search (parallel walkdir)
     {
         let conn = db_state.0.lock().unwrap();
         let root_prefix = if path.ends_with('\\') {
@@ -223,19 +223,26 @@ pub fn watch_dir(
             "DELETE FROM file_index WHERE file_path LIKE ?1 || '%'",
             rusqlite::params![root_prefix],
         );
-        for entry in walkdir::WalkDir::new(&path)
+
+        use rayon::prelude::*;
+        let entries: Vec<_> = walkdir::WalkDir::new(&path)
             .into_iter()
+            .par_bridge()
             .filter_map(|e| e.ok())
             .filter(|e| e.path().to_string_lossy() != path)
-        {
-            let entry_path = entry.path();
-            let file_path = entry_path.to_string_lossy().to_string();
-            let file_name = entry_path
-                .file_name()
-                .map(|n| n.to_string_lossy().to_string())
-                .unwrap_or_default();
-            let is_dir = entry.file_type().is_dir() as i32;
+            .map(|entry| {
+                let entry_path = entry.path();
+                let file_path = entry_path.to_string_lossy().to_string();
+                let file_name = entry_path
+                    .file_name()
+                    .map(|n| n.to_string_lossy().to_string())
+                    .unwrap_or_default();
+                let is_dir = entry.file_type().is_dir() as i32;
+                (file_path, file_name, is_dir)
+            })
+            .collect();
 
+        for (file_path, file_name, is_dir) in entries {
             let _ = conn.execute(
                 "INSERT INTO file_index (file_path, file_name, is_dir) VALUES (?1, ?2, ?3)",
                 rusqlite::params![file_path, file_name, is_dir],

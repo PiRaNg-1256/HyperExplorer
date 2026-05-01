@@ -30,6 +30,7 @@ export function makeTab(path = 'C:\\'): TabState {
     sortDir: 'asc',
     viewMode: 'list',
     searchQuery: '',
+    searchRecursive: true,
     tagFilter: null,
     renamingPath: null,
     refreshTrigger: 0,
@@ -125,6 +126,7 @@ interface AppStore {
   setSortDir: (paneId: PaneId, d: SortDir) => void;
   setViewMode: (paneId: PaneId, m: ViewMode) => void;
   setSearchQuery: (paneId: PaneId, q: string) => void;
+  setSearchRecursive: (paneId: PaneId, recursive: boolean) => void;
   setTagFilter: (paneId: PaneId, tag: string | null) => void;
 
   // Rename
@@ -335,6 +337,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
     set((s) => ({ panes: updateActiveTab(s.panes, paneId, () => ({ viewMode })) })),
   setSearchQuery: (paneId, searchQuery) =>
     set((s) => ({ panes: updateActiveTab(s.panes, paneId, () => ({ searchQuery })) })),
+  setSearchRecursive: (paneId, searchRecursive) =>
+    set((s) => ({ panes: updateActiveTab(s.panes, paneId, () => ({ searchRecursive })) })),
   setTagFilter: (paneId, tagFilter) =>
     set((s) => ({ panes: updateActiveTab(s.panes, paneId, () => ({ tagFilter })) })),
 

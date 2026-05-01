@@ -65,6 +65,7 @@ export interface TabState {
   sortDir: SortDir;
   viewMode: ViewMode;
   searchQuery: string;
+  searchRecursive: boolean;
   tagFilter: string | null;
   renamingPath: string | null;
   refreshTrigger: number;

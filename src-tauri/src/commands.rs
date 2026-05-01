@@ -178,6 +178,7 @@ pub fn get_file_metadata(path: String) -> Result<FileMetadata, String> {
 pub fn search_files(
     root: String,
     query: String,
+    recursive: bool,
     state: tauri::State<'_, crate::db::DbState>,
 ) -> Result<Vec<FileEntry>, String> {
     // Try FTS5 index first
@@ -204,8 +205,19 @@ pub fn search_files(
             }) {
                 for result in rows.flatten() {
                     let path = std::path::Path::new(&result.0);
-                    if let Ok(meta) = std::fs::metadata(path) {
-                        results.push(entry_from_path(path, &meta));
+
+                    // If not recursive, filter to immediate children only
+                    let should_include = if !recursive {
+                        let relative = result.0.strip_prefix(&root_normalized).unwrap_or("");
+                        !relative.contains('\\')
+                    } else {
+                        true
+                    };
+
+                    if should_include {
+                        if let Ok(meta) = std::fs::metadata(path) {
+                            results.push(entry_from_path(path, &meta));
+                        }
                     }
                 }
             }
@@ -222,8 +234,9 @@ pub fn search_files(
     // Fall back to parallel walkdir if index is empty or unavailable
     use rayon::prelude::*;
 
+    let max_depth = if recursive { 10 } else { 1 };
     let mut results: Vec<FileEntry> = walkdir::WalkDir::new(&root)
-        .max_depth(10)
+        .max_depth(max_depth)
         .follow_links(false)
         .into_iter()
         .par_bridge()

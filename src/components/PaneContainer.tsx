@@ -70,6 +70,7 @@ export function PaneContainer({ paneId }: Props) {
           result = await invoke<FileEntry[]>('search_files', {
             root: currentPath,
             query: searchQuery.trim(),
+            recursive: tab.searchRecursive,
           });
         } else {
           result = await invoke<FileEntry[]>('list_dir', { path: currentPath });
@@ -98,7 +99,7 @@ export function PaneContainer({ paneId }: Props) {
     };
   // refreshTrigger increment forces a reload without path change (e.g. after drop)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPath, searchQuery, refreshTrigger]);
+  }, [currentPath, searchQuery, tab.searchRecursive, refreshTrigger]);
 
   // ── Watch directory ─────────────────────────────────────────────────────────
 

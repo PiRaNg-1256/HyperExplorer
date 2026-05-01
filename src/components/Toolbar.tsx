@@ -8,6 +8,7 @@ import {
   Search,
   RefreshCw,
   X,
+  GitBranch,
 } from 'lucide-react';
 import { useAppStore, getActiveTab } from '../store';
 import type { PaneId } from '../types';
@@ -92,6 +93,16 @@ export function Toolbar({ paneId, onRefresh }: Props) {
           </button>
         )}
       </div>
+
+      <button
+        onClick={() => store.setSearchRecursive(paneId, !tab.searchRecursive)}
+        title={tab.searchRecursive ? 'Search recursively (current folder only)' : 'Search current folder only (include subfolders)'}
+        className={`p-1.5 rounded text-zinc-400 hover:text-zinc-200 ${
+          tab.searchRecursive ? 'hover:bg-zinc-700' : 'bg-zinc-700 text-white'
+        }`}
+      >
+        <GitBranch size={13} />
+      </button>
 
       <div className="flex-1" />
 

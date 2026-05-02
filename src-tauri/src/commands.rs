@@ -174,11 +174,17 @@ pub fn get_file_metadata(path: String) -> Result<FileMetadata, String> {
     })
 }
 
+#[derive(Debug, Serialize, Clone)]
+pub struct SearchResultBatch {
+    pub results: Vec<FileEntry>,
+}
+
 #[tauri::command]
 pub fn search_files(
     root: String,
     query: String,
     recursive: bool,
+    app_handle: tauri::AppHandle,
     state: tauri::State<'_, crate::db::DbState>,
 ) -> Result<Vec<FileEntry>, String> {
     // Try FTS5 index first
@@ -228,6 +234,12 @@ pub fn search_files(
     if !indexed_results.is_empty() {
         // Rank indexed results
         indexed_results.sort_by_key(|entry| std::cmp::Reverse(score_match(&entry.name, &entry.path, &query)));
+        // Emit in batches of 50
+        for batch in indexed_results.chunks(50) {
+            let _ = app_handle.emit("search-result-batch", SearchResultBatch {
+                results: batch.to_vec(),
+            });
+        }
         return Ok(indexed_results);
     }
 
@@ -255,6 +267,12 @@ pub fn search_files(
     results.truncate(2000);
     // Rank fallback results
     results.sort_by_key(|entry| std::cmp::Reverse(score_match(&entry.name, &entry.path, &query)));
+    // Emit in batches of 50
+    for batch in results.chunks(50) {
+        let _ = app_handle.emit("search-result-batch", SearchResultBatch {
+            results: batch.to_vec(),
+        });
+    }
     Ok(results)
 }
 

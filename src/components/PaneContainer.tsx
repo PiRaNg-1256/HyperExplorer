@@ -61,12 +61,26 @@ export function PaneContainer({ paneId }: Props) {
 
   useEffect(() => {
     let cancelled = false;
+    let unlistenSearch: (() => void) | undefined;
 
     async function load() {
       store.setLoading(paneId, true);
       try {
         let result: FileEntry[];
         if (searchQuery.trim()) {
+          // Clear entries and listen to streaming results
+          store.setEntries(paneId, []);
+
+          // Listen to search-result-batch events
+          unlistenSearch = await listen<{ results: FileEntry[] }>('search-result-batch', (event) => {
+            if (!cancelled) {
+              const state = useAppStore.getState();
+              const current = getActiveTab(state.panes[paneId]);
+              store.setEntries(paneId, [...current.entries, ...event.payload.results]);
+            }
+          });
+
+          // Call search to get final results
           result = await invoke<FileEntry[]>('search_files', {
             root: currentPath,
             query: searchQuery.trim(),
@@ -82,6 +96,7 @@ export function PaneContainer({ paneId }: Props) {
           store.addToast(`Cannot open "${currentPath}": ${String(e)}`, 'error');
       } finally {
         if (!cancelled) store.setLoading(paneId, false);
+        unlistenSearch?.();
       }
     }
 
@@ -89,6 +104,7 @@ export function PaneContainer({ paneId }: Props) {
       load();
       return () => {
         cancelled = true;
+        unlistenSearch?.();
       };
     }
 
@@ -96,6 +112,7 @@ export function PaneContainer({ paneId }: Props) {
     return () => {
       cancelled = true;
       clearTimeout(timer);
+      unlistenSearch?.();
     };
   // refreshTrigger increment forces a reload without path change (e.g. after drop)
   // eslint-disable-next-line react-hooks/exhaustive-deps

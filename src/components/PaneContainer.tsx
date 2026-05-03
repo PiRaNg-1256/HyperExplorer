@@ -57,6 +57,9 @@ export function PaneContainer({ paneId }: Props) {
     targets: string[];
   } | null>(null);
 
+  // Indexed file count state
+  const [indexedCount, setIndexedCount] = useState(0);
+
   // ── Load directory ──────────────────────────────────────────────────────────
 
   useEffect(() => {
@@ -117,6 +120,21 @@ export function PaneContainer({ paneId }: Props) {
   // refreshTrigger increment forces a reload without path change (e.g. after drop)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPath, searchQuery, tab.searchRecursive, refreshTrigger]);
+
+  // ── Get indexed file count when search is active ──────────────────────────────
+
+  useEffect(() => {
+    if (searchQuery.trim()) {
+      invoke<number>('get_indexed_file_count', {
+        root: currentPath,
+        recursive: tab.searchRecursive,
+      })
+        .then(setIndexedCount)
+        .catch(() => setIndexedCount(0));
+    } else {
+      setIndexedCount(0);
+    }
+  }, [currentPath, searchQuery, tab.searchRecursive]);
 
   // ── Watch directory ─────────────────────────────────────────────────────────
 
@@ -538,7 +556,7 @@ export function PaneContainer({ paneId }: Props) {
         />
       )}
 
-      <StatusBar paneId={paneId} total={displayedEntries.length} />
+      <StatusBar paneId={paneId} total={displayedEntries.length} indexedCount={indexedCount} />
 
       {/* Context menu */}
       {ctxMenu && (

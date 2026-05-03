@@ -5,12 +5,13 @@ import { formatSize } from '../utils/format';
 interface Props {
   paneId: PaneId;
   total: number;
+  indexedCount?: number;
 }
 
-export function StatusBar({ paneId, total }: Props) {
+export function StatusBar({ paneId, total, indexedCount = 0 }: Props) {
   const { panes } = useAppStore();
   const tab = getActiveTab(panes[paneId]);
-  const { selectedPaths, entries, tagFilter } = tab;
+  const { selectedPaths, entries, tagFilter, searchQuery } = tab;
 
   const count = selectedPaths.size;
   const totalBytes = entries
@@ -26,6 +27,9 @@ export function StatusBar({ paneId, total }: Props) {
         </span>
       ) : (
         <span>{total} item{total !== 1 ? 's' : ''}</span>
+      )}
+      {searchQuery.trim() && indexedCount > 0 && (
+        <span className="text-blue-400">{indexedCount} indexed</span>
       )}
       {tagFilter && (
         <span className="text-indigo-400 ml-auto">Filter: #{tagFilter}</span>

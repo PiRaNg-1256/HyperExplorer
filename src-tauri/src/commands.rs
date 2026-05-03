@@ -277,6 +277,40 @@ pub fn search_files(
 }
 
 #[tauri::command]
+pub fn get_indexed_file_count(
+    root: String,
+    recursive: bool,
+    state: tauri::State<'_, crate::db::DbState>,
+) -> Result<u32, String> {
+    let conn = state.0.lock().unwrap();
+    let root_normalized = if root.ends_with('\\') {
+        root.clone()
+    } else {
+        format!("{}\\", root)
+    };
+
+    let count = if recursive {
+        conn.query_row(
+            "SELECT COUNT(*) FROM file_index WHERE file_path LIKE ?1 || '%'",
+            rusqlite::params![root_normalized],
+            |row| row.get::<_, u32>(0),
+        )
+        .map_err(|e| e.to_string())?
+    } else {
+        // Count only immediate children
+        let mut stmt = conn
+            .prepare(
+                "SELECT COUNT(*) FROM file_index WHERE file_path LIKE ?1 || '%' AND file_path NOT LIKE ?1 || '%\\%'",
+            )
+            .map_err(|e| e.to_string())?;
+        stmt.query_row([], |row| row.get::<_, u32>(0))
+            .map_err(|e| e.to_string())?
+    };
+
+    Ok(count)
+}
+
+#[tauri::command]
 pub fn watch_dir(
     path: String,
     app_handle: tauri::AppHandle,

@@ -36,7 +36,7 @@ import type { LucideIcon } from 'lucide-react';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type ResultKind = 'history' | 'pinned' | 'drive' | 'special';
+type ResultKind = 'history' | 'pinned' | 'drive' | 'special' | 'search';
 
 interface QuickResult {
   id: string;
@@ -62,6 +62,11 @@ interface PinnedEntry {
   path: string;
 }
 
+interface SearchQueryEntry {
+  query: string;
+  searchedAt: number;
+}
+
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const OLLAMA_URL = 'http://localhost:11434/api/generate';
@@ -74,6 +79,7 @@ const KIND_LABELS: Record<ResultKind, string> = {
   pinned: 'Pinned',
   drive: 'Drive',
   special: 'Quick Access',
+  search: 'Searches',
 };
 
 // ── Fuzzy filter ──────────────────────────────────────────────────────────────
@@ -240,6 +246,20 @@ export function CommandPalette() {
         }
       } catch { /* ignore */ }
 
+      // Search queries (most recent first)
+      try {
+        const queries = await invoke<SearchQueryEntry[]>('get_search_queries');
+        for (const q of queries) {
+          results.push({
+            id: `search:${q.query}`,
+            kind: 'search',
+            label: q.query,
+            path: q.query,
+            icon: Search,
+          });
+        }
+      } catch { /* ignore */ }
+
       setAllResults(results);
     }
 
@@ -338,7 +358,11 @@ export function CommandPalette() {
   // ── Execute a quick-nav result ───────────────────────────────────────────────
 
   function executeResult(result: QuickResult) {
-    store.setCurrentPath(activePaneId, result.path);
+    if (result.kind === 'search') {
+      store.setSearchQuery(activePaneId, result.path);
+    } else {
+      store.setCurrentPath(activePaneId, result.path);
+    }
     store.setPaletteOpen(false);
   }
 
@@ -394,7 +418,7 @@ export function CommandPalette() {
 
   // ── Group results for display ────────────────────────────────────────────────
 
-  const grouped = (['special', 'pinned', 'drive', 'history'] as ResultKind[])
+  const grouped = (['search', 'special', 'pinned', 'drive', 'history'] as ResultKind[])
     .map((kind) => ({
       kind,
       items: filteredResults.filter((r) => r.kind === kind),

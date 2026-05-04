@@ -74,6 +74,9 @@ export function PaneContainer({ paneId }: Props) {
           // Clear entries and listen to streaming results
           store.setEntries(paneId, []);
 
+          // Log search query
+          invoke('add_search_query', { query: searchQuery.trim() }).catch(() => {});
+
           // Listen to search-result-batch events
           unlistenSearch = await listen<{ results: FileEntry[] }>('search-result-batch', (event) => {
             if (!cancelled) {

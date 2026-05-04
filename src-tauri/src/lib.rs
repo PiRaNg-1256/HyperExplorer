@@ -58,6 +58,9 @@ pub fn run() {
             // Database — file index (FTS5)
             db::index_directory,
             db::search_index,
+            // Database — search queries
+            db::add_search_query,
+            db::get_search_queries,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

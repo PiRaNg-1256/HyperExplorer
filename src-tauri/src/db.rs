@@ -32,6 +32,13 @@ pub struct PinnedItem {
     pub is_dir: bool,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchQueryEntry {
+    pub query: String,
+    pub searched_at: i64,
+}
+
 // ── Init ──────────────────────────────────────────────────────────────────────
 
 pub fn init_db(conn: &Connection) -> Result<()> {
@@ -67,6 +74,14 @@ pub fn init_db(conn: &Connection) -> Result<()> {
             file_name,
             is_dir UNINDEXED
         );
+
+        CREATE TABLE IF NOT EXISTS search_queries (
+            id        INTEGER PRIMARY KEY AUTOINCREMENT,
+            query     TEXT NOT NULL,
+            searched_at INTEGER NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS search_queries_time ON search_queries(searched_at DESC);
         ",
     )?;
     // Migration: add is_dir column to pre-existing installs (silently ignored if already present)
@@ -312,4 +327,45 @@ pub fn search_index(
 
     rows.collect::<Result<Vec<_>, _>>()
         .map_err(|e| e.to_string())
+}
+
+// ── Search Query commands ─────────────────────────────────────────────────────
+
+#[tauri::command]
+pub fn add_search_query(query: String, state: tauri::State<'_, DbState>) -> Result<(), String> {
+    let conn = state.0.lock().unwrap();
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as i64;
+    conn.execute(
+        "INSERT INTO search_queries (query, searched_at) VALUES (?1, ?2)",
+        params![query, now],
+    )
+    .map(|_| ())
+    .map_err(|e| e.to_string())?;
+    // Keep only last 20 queries
+    conn.execute(
+        "DELETE FROM search_queries WHERE id NOT IN (SELECT id FROM search_queries ORDER BY searched_at DESC LIMIT 20)",
+        [],
+    )
+    .map(|_| ())
+    .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn get_search_queries(state: tauri::State<'_, DbState>) -> Result<Vec<SearchQueryEntry>, String> {
+    let conn = state.0.lock().unwrap();
+    let mut stmt = conn
+        .prepare("SELECT query, searched_at FROM search_queries ORDER BY searched_at DESC")
+        .map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map([], |row| {
+            Ok(SearchQueryEntry {
+                query: row.get(0)?,
+                searched_at: row.get(1)?,
+            })
+        })
+        .map_err(|e| e.to_string())?;
+    rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
 }

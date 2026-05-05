@@ -77,14 +77,18 @@ export function PaneContainer({ paneId }: Props) {
           // Log search query
           invoke('add_search_query', { query: searchQuery.trim() }).catch(() => {});
 
-          // Listen to search-result-batch events
-          unlistenSearch = await listen<{ results: FileEntry[] }>('search-result-batch', (event) => {
-            if (!cancelled) {
-              const state = useAppStore.getState();
-              const current = getActiveTab(state.panes[paneId]);
-              store.setEntries(paneId, [...current.entries, ...event.payload.results]);
-            }
-          });
+          // Listen to search-result-batch events (set up listener before search)
+          try {
+            unlistenSearch = await listen<{ results: FileEntry[] }>('search-result-batch', (event) => {
+              if (!cancelled) {
+                const state = useAppStore.getState();
+                const current = getActiveTab(state.panes[paneId]);
+                store.setEntries(paneId, [...current.entries, ...event.payload.results]);
+              }
+            });
+          } catch {
+            // Listener setup failed, continue without streaming results
+          }
 
           // Call search to get final results
           result = await invoke<FileEntry[]>('search_files', {
@@ -144,7 +148,9 @@ export function PaneContainer({ paneId }: Props) {
   useEffect(() => {
     let unlisten: (() => void) | undefined;
 
-    invoke('watch_dir', { path: currentPath }).catch(() => {});
+    invoke('watch_dir', { path: currentPath }).catch((err) => {
+      console.error(`Failed to watch directory ${currentPath}:`, err);
+    });
 
     listen<FsChangeEvent>('fs-change', (event) => {
       const state = useAppStore.getState();

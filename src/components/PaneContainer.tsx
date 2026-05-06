@@ -147,10 +147,25 @@ export function PaneContainer({ paneId }: Props) {
 
   useEffect(() => {
     let unlisten: (() => void) | undefined;
+    let previousPath: string | undefined;
 
-    invoke('watch_dir', { path: currentPath }).catch((err) => {
-      console.error(`Failed to watch directory ${currentPath}:`, err);
-    });
+    async function setupWatch() {
+      try {
+        const prev = previousPath;
+        previousPath = currentPath;
+
+        // Clean up old watcher if path changed
+        if (prev && prev !== currentPath) {
+          invoke('unwatch_dir', { path: prev }).catch(() => {});
+        }
+
+        await invoke('watch_dir', { path: currentPath });
+      } catch (err) {
+        console.error(`Failed to watch directory ${currentPath}:`, err);
+      }
+    }
+
+    setupWatch();
 
     listen<FsChangeEvent>('fs-change', (event) => {
       const state = useAppStore.getState();
@@ -168,6 +183,9 @@ export function PaneContainer({ paneId }: Props) {
 
     return () => {
       unlisten?.();
+      if (previousPath && previousPath === currentPath) {
+        invoke('unwatch_dir', { path: currentPath }).catch(() => {});
+      }
     };
   }, [currentPath, paneId]);
 

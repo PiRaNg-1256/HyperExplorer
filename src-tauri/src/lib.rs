@@ -32,6 +32,7 @@ pub fn run() {
             commands::search_files,
             commands::get_indexed_file_count,
             commands::watch_dir,
+            commands::unwatch_dir,
             commands::open_file,
             commands::delete_to_trash,
             commands::rename_file,

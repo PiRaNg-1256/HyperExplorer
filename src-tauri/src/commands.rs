@@ -394,6 +394,12 @@ pub fn watch_dir(
 }
 
 #[tauri::command]
+pub fn unwatch_dir(path: String, state: tauri::State<'_, WatcherState>) -> Result<(), String> {
+    state.0.lock().unwrap().remove(&path);
+    Ok(())
+}
+
+#[tauri::command]
 pub fn open_file(path: String) -> Result<(), String> {
     open::that(&path).map_err(|e| e.to_string())
 }

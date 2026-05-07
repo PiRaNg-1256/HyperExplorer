@@ -417,13 +417,43 @@ pub fn rename_file(from: String, to: String) -> Result<(), String> {
     std::fs::rename(&from, &to).map_err(|e| e.to_string())
 }
 
+fn find_non_conflicting_path(path: &std::path::Path) -> std::path::PathBuf {
+    if !path.exists() {
+        return path.to_path_buf();
+    }
+    let parent = path.parent().unwrap_or_else(|| std::path::Path::new(""));
+    let file_stem = path
+        .file_stem()
+        .map(|s| s.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "file".to_string());
+    let extension = path
+        .extension()
+        .map(|s| s.to_string_lossy().into_owned())
+        .unwrap_or_default();
+
+    let mut n = 1u32;
+    loop {
+        let new_name = if extension.is_empty() {
+            format!("{} ({})", file_stem, n)
+        } else {
+            format!("{} ({}).{}", file_stem, n, extension)
+        };
+        let new_path = parent.join(&new_name);
+        if !new_path.exists() {
+            return new_path;
+        }
+        n += 1;
+    }
+}
+
 #[tauri::command]
 pub fn copy_file(from: String, to: String) -> Result<(), String> {
     let src = std::path::Path::new(&from);
+    let dest_path = find_non_conflicting_path(std::path::Path::new(&to));
     if src.is_dir() {
-        copy_dir_recursive(src, std::path::Path::new(&to))
+        copy_dir_recursive(src, &dest_path)
     } else {
-        std::fs::copy(&from, &to)
+        std::fs::copy(&from, &dest_path)
             .map(|_| ())
             .map_err(|e| e.to_string())
     }
@@ -576,16 +606,19 @@ pub fn read_text_file(path: String) -> Result<String, String> {
 
 #[tauri::command]
 pub fn move_file(from: String, to: String) -> Result<(), String> {
+    let dest_path = find_non_conflicting_path(std::path::Path::new(&to));
+    let dest_str = dest_path.to_string_lossy().into_owned();
+
     // Fast path: rename works on the same filesystem
-    if std::fs::rename(&from, &to).is_ok() {
+    if std::fs::rename(&from, &dest_str).is_ok() {
         return Ok(());
     }
     // Fallback: copy then delete (cross-drive move)
     let src = std::path::Path::new(&from);
     if src.is_dir() {
-        copy_dir_recursive(src, std::path::Path::new(&to))?;
+        copy_dir_recursive(src, &dest_path)?;
     } else {
-        std::fs::copy(&from, &to)
+        std::fs::copy(&from, &dest_str)
             .map(|_| ())
             .map_err(|e| e.to_string())?;
     }

@@ -44,6 +44,7 @@ pub fn run() {
             commands::move_file,
             commands::show_open_with_dialog,
             commands::compress_to_zip,
+            commands::open_terminal_here,
             // Database — tags
             db::add_tag,
             db::get_tags,

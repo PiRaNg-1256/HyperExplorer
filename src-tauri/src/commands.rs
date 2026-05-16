@@ -656,3 +656,25 @@ pub fn get_special_dirs() -> Vec<FileEntry> {
         })
         .collect()
 }
+
+#[tauri::command]
+pub fn open_terminal_here(path: String) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        use std::process::Command;
+        let dir = std::path::Path::new(&path);
+        if !dir.exists() {
+            return Err("Directory does not exist".to_string());
+        }
+        let abs_path = std::fs::canonicalize(dir).map_err(|e| e.to_string())?;
+        Command::new("powershell")
+            .current_dir(&abs_path)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        Err("Terminal opening only supported on Windows".to_string())
+    }
+}

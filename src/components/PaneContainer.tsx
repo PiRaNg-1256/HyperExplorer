@@ -14,6 +14,7 @@ import {
   ExternalLink,
   MonitorPlay,
   MapPin,
+  Terminal,
 } from 'lucide-react';
 import { useAppStore, getActiveTab } from '../store';
 import type { FileEntry, FsChangeEvent, PaneId } from '../types';
@@ -328,6 +329,19 @@ export function PaneContainer({ paneId }: Props) {
             },
           });
         }
+        // Open Terminal Here (single directory only)
+        if (entry && entry.isDir) {
+          items.push({
+            kind: 'item',
+            label: 'Open Terminal Here',
+            icon: Terminal,
+            onClick: () => {
+              invoke('open_terminal_here', { path: targets[0] }).catch((e) =>
+                store.addToast(`Cannot open terminal: ${String(e)}`, 'error'),
+              );
+            },
+          });
+        }
         items.push({ kind: 'separator' });
       }
 
@@ -384,6 +398,21 @@ export function PaneContainer({ paneId }: Props) {
     }
 
     items.push({ kind: 'separator' });
+
+    // Open Terminal Here (background context menu)
+    if (!hasTargets) {
+      items.push({
+        kind: 'item',
+        label: 'Open Terminal Here',
+        icon: Terminal,
+        onClick: () => {
+          invoke('open_terminal_here', { path: currentPath }).catch((e) =>
+            store.addToast(`Cannot open terminal: ${String(e)}`, 'error'),
+          );
+        },
+      });
+      items.push({ kind: 'separator' });
+    }
 
     // New Folder
     items.push({

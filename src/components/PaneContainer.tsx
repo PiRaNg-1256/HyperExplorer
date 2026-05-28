@@ -148,41 +148,42 @@ export function PaneContainer({ paneId }: Props) {
 
   useEffect(() => {
     let unlisten: (() => void) | undefined;
-    let previousPath: string | undefined;
+    let cancelled = false;
 
-    async function setupWatch() {
+    async function setup() {
       try {
+        // Clean up old watcher if path changed
         const prev = previousPath;
         previousPath = currentPath;
-
-        // Clean up old watcher if path changed
         if (prev && prev !== currentPath) {
           invoke('unwatch_dir', { path: prev }).catch(() => {});
         }
 
+        // Set up new watcher
         await invoke('watch_dir', { path: currentPath });
+
+        // Set up event listener (must be after watch_dir is set up)
+        if (!cancelled) {
+          unlisten = await listen<FsChangeEvent>('fs-change', (event) => {
+            const state = useAppStore.getState();
+            const currentTab = getActiveTab(state.panes[paneId]);
+            if (event.payload.path === currentTab.currentPath) {
+              invoke<FileEntry[]>('list_dir', { path: currentTab.currentPath })
+                .then((result) => useAppStore.getState().setEntries(paneId, result))
+                .catch(() => {});
+            }
+          });
+        }
       } catch (err) {
         console.error(`Failed to watch directory ${currentPath}:`, err);
       }
     }
 
-    setupWatch();
-
-    listen<FsChangeEvent>('fs-change', (event) => {
-      const state = useAppStore.getState();
-      const currentTab = getActiveTab(state.panes[paneId]);
-      if (event.payload.path === currentTab.currentPath) {
-        invoke<FileEntry[]>('list_dir', { path: currentTab.currentPath })
-          .then((result) => useAppStore.getState().setEntries(paneId, result))
-          .catch(() => {});
-      }
-    })
-      .then((fn) => {
-        unlisten = fn;
-      })
-      .catch(() => {});
+    let previousPath: string | undefined;
+    setup();
 
     return () => {
+      cancelled = true;
       unlisten?.();
       if (previousPath && previousPath === currentPath) {
         invoke('unwatch_dir', { path: currentPath }).catch(() => {});

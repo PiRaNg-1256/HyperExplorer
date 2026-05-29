@@ -369,3 +369,11 @@ pub fn get_search_queries(state: tauri::State<'_, DbState>) -> Result<Vec<Search
         .map_err(|e| e.to_string())?;
     rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
 }
+
+#[tauri::command]
+pub fn clear_search_queries(state: tauri::State<'_, DbState>) -> Result<(), String> {
+    let conn = state.0.lock().unwrap();
+    conn.execute("DELETE FROM search_queries", [])
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}

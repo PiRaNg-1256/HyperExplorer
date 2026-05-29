@@ -63,6 +63,7 @@ pub fn run() {
             // Database — search queries
             db::add_search_query,
             db::get_search_queries,
+            db::clear_search_queries,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -584,8 +584,21 @@ export function CommandPalette() {
                 grouped.map(({ kind, items }) => (
                   <div key={kind}>
                     {/* Group header */}
-                    <div className="px-4 py-1 text-[10px] font-semibold uppercase tracking-widest text-zinc-600">
-                      {KIND_LABELS[kind]}
+                    <div className="flex items-center justify-between px-4 py-1">
+                      <div className="text-[10px] font-semibold uppercase tracking-widest text-zinc-600">
+                        {KIND_LABELS[kind]}
+                      </div>
+                      {kind === 'search' && items.length > 0 && (
+                        <button
+                          onClick={async () => {
+                            await invoke('clear_search_queries').catch(() => {});
+                            setAllResults(allResults.filter((r) => r.kind !== 'search'));
+                          }}
+                          className="text-[10px] text-zinc-600 hover:text-zinc-400 transition-colors"
+                        >
+                          Clear
+                        </button>
+                      )}
                     </div>
 
                     {/* Items */}

@@ -348,12 +348,17 @@ pub fn watch_dir(
             })
             .collect();
 
-        for (file_path, file_name, is_dir) in entries {
-            let _ = conn.execute(
-                "INSERT INTO file_index (file_path, file_name, is_dir) VALUES (?1, ?2, ?3)",
-                rusqlite::params![file_path, file_name, is_dir],
-            );
+        let _ = conn.execute_batch("BEGIN TRANSACTION");
+        let mut stmt = conn
+            .prepare("INSERT INTO file_index (file_path, file_name, is_dir) VALUES (?1, ?2, ?3)")
+            .ok();
+        if let Some(ref mut stmt) = stmt {
+            for (file_path, file_name, is_dir) in entries {
+                let _ = stmt.execute(rusqlite::params![file_path, file_name, is_dir]);
+            }
         }
+        let _ = conn.execute_batch("COMMIT");
+        drop(stmt);
     }
 
     let (tx, rx) = std::sync::mpsc::channel::<notify::Result<notify::Event>>();

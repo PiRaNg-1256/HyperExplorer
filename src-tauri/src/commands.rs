@@ -234,45 +234,67 @@ pub fn search_files(
     if !indexed_results.is_empty() {
         // Rank indexed results
         indexed_results.sort_by_key(|entry| std::cmp::Reverse(score_match(&entry.name, &entry.path, &query)));
-        // Emit in batches of 50
-        for batch in indexed_results.chunks(50) {
+        // Emit progressively in batches of 50
+        let mut batch = Vec::new();
+        for entry in &indexed_results {
+            batch.push(entry.clone());
+            if batch.len() >= 50 {
+                let _ = app_handle.emit("search-result-batch", SearchResultBatch {
+                    results: batch.drain(..).collect(),
+                });
+            }
+        }
+        if !batch.is_empty() {
             let _ = app_handle.emit("search-result-batch", SearchResultBatch {
-                results: batch.to_vec(),
+                results: batch,
             });
         }
         return Ok(indexed_results);
     }
 
-    // Fall back to parallel walkdir if index is empty or unavailable
-    use rayon::prelude::*;
-
+    // Fall back to sequential walkdir with progressive streaming
     let max_depth = if recursive { 10 } else { 1 };
-    let mut results: Vec<FileEntry> = walkdir::WalkDir::new(&root)
+    let mut results: Vec<FileEntry> = Vec::new();
+    let mut batch = Vec::new();
+
+    for entry in walkdir::WalkDir::new(&root)
         .max_depth(max_depth)
         .follow_links(false)
         .into_iter()
-        .par_bridge()
         .filter_map(|e| e.ok())
         .filter(|e| e.path().to_string_lossy() != root)
-        .filter_map(|entry| {
-            let name = entry.file_name().to_string_lossy().to_string();
-            if score_match(&name, &entry.path().to_string_lossy(), &query) > 0 {
-                entry.metadata().ok().map(|meta| entry_from_path(entry.path(), &meta))
-            } else {
-                None
-            }
-        })
-        .collect();
+    {
+        let name = entry.file_name().to_string_lossy().to_string();
+        if score_match(&name, &entry.path().to_string_lossy(), &query) > 0 {
+            if let Ok(meta) = entry.metadata() {
+                let entry_obj = entry_from_path(entry.path(), &meta);
+                results.push(entry_obj.clone());
+                batch.push(entry_obj);
 
-    results.truncate(2000);
-    // Rank fallback results
-    results.sort_by_key(|entry| std::cmp::Reverse(score_match(&entry.name, &entry.path, &query)));
-    // Emit in batches of 50
-    for batch in results.chunks(50) {
+                // Emit batch when it reaches 50 items
+                if batch.len() >= 50 {
+                    let _ = app_handle.emit("search-result-batch", SearchResultBatch {
+                        results: batch.drain(..).collect(),
+                    });
+                }
+
+                // Stop at 2000 results
+                if results.len() >= 2000 {
+                    break;
+                }
+            }
+        }
+    }
+
+    // Emit remaining batch
+    if !batch.is_empty() {
         let _ = app_handle.emit("search-result-batch", SearchResultBatch {
-            results: batch.to_vec(),
+            results: batch,
         });
     }
+
+    // Rank fallback results before returning final list
+    results.sort_by_key(|entry| std::cmp::Reverse(score_match(&entry.name, &entry.path, &query)));
     Ok(results)
 }
 

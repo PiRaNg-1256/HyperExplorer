@@ -334,6 +334,9 @@ pub fn search_index(
 #[tauri::command]
 pub fn add_search_query(query: String, state: tauri::State<'_, DbState>) -> Result<(), String> {
     let conn = state.0.lock().unwrap();
+    // Delete existing query to move it to top
+    conn.execute("DELETE FROM search_queries WHERE query = ?1", params![query])
+        .ok();
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()

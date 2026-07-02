@@ -69,7 +69,7 @@ function RenameInput({
     } else {
       el.select();
     }
-  }, []);
+  }, [entry]);
 
   return (
     <input

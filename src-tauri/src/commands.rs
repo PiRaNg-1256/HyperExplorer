@@ -540,6 +540,10 @@ pub fn show_open_with_dialog(path: String) -> Result<(), String> {
 /// Returns the full path of the created archive.
 #[tauri::command]
 pub fn compress_to_zip(paths: Vec<String>, dest_dir: String) -> Result<String, String> {
+    if paths.is_empty() {
+        return Err("No files selected for compression".to_string());
+    }
+
     use std::io::Write;
     use zip::write::SimpleFileOptions;
     use zip::CompressionMethod;

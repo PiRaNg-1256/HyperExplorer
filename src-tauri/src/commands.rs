@@ -441,6 +441,10 @@ pub fn delete_to_trash(paths: Vec<String>) -> Result<(), String> {
 
 #[tauri::command]
 pub fn rename_file(from: String, to: String) -> Result<(), String> {
+    let src = std::path::Path::new(&from);
+    if !src.exists() {
+        return Err(format!("Source path does not exist: {}", from));
+    }
     std::fs::rename(&from, &to).map_err(|e| e.to_string())
 }
 
@@ -476,6 +480,9 @@ fn find_non_conflicting_path(path: &std::path::Path) -> std::path::PathBuf {
 #[tauri::command]
 pub fn copy_file(from: String, to: String) -> Result<(), String> {
     let src = std::path::Path::new(&from);
+    if !src.exists() {
+        return Err(format!("Source path does not exist: {}", from));
+    }
     let dest_path = find_non_conflicting_path(std::path::Path::new(&to));
     if src.is_dir() {
         copy_dir_recursive(src, &dest_path)
@@ -544,6 +551,21 @@ pub fn compress_to_zip(paths: Vec<String>, dest_dir: String) -> Result<String, S
         return Err("No files selected for compression".to_string());
     }
 
+    let dest = std::path::Path::new(&dest_dir);
+    if !dest.exists() {
+        return Err(format!("Destination directory does not exist: {}", dest_dir));
+    }
+    if !dest.is_dir() {
+        return Err(format!("Destination path is not a directory: {}", dest_dir));
+    }
+
+    for path_str in &paths {
+        let path = std::path::Path::new(path_str);
+        if !path.exists() {
+            return Err(format!("Source path does not exist: {}", path_str));
+        }
+    }
+
     use std::io::Write;
     use zip::write::SimpleFileOptions;
     use zip::CompressionMethod;
@@ -558,7 +580,6 @@ pub fn compress_to_zip(paths: Vec<String>, dest_dir: String) -> Result<String, S
     let base_name = if paths.len() == 1 { first_stem } else { "Archive".to_string() };
 
     // Find non-conflicting name
-    let dest = std::path::Path::new(&dest_dir);
     let mut n = 0u32;
     let zip_path = loop {
         let name = if n == 0 {
@@ -637,6 +658,10 @@ pub fn read_text_file(path: String) -> Result<String, String> {
 
 #[tauri::command]
 pub fn move_file(from: String, to: String) -> Result<(), String> {
+    let src = std::path::Path::new(&from);
+    if !src.exists() {
+        return Err(format!("Source path does not exist: {}", from));
+    }
     let dest_path = find_non_conflicting_path(std::path::Path::new(&to));
     let dest_str = dest_path.to_string_lossy().into_owned();
 
@@ -645,7 +670,6 @@ pub fn move_file(from: String, to: String) -> Result<(), String> {
         return Ok(());
     }
     // Fallback: copy then delete (cross-drive move)
-    let src = std::path::Path::new(&from);
     if src.is_dir() {
         copy_dir_recursive(src, &dest_path)?;
     } else {
